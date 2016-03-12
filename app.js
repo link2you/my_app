@@ -20,10 +20,11 @@ db.on("error", function(err) {
   console.log("DB ERROR : ", err);
 });
 
-// model setting
+// model settingl
 var postSchema = mongoose.Schema({
   title     : {type:String, required:true},
   body      : {type:String, required:true},
+  author    : {type:mongoose.Schema.Types.ObjectId, ref:'user', required:true},
   createdAt : {type:Date,   default:Date.now},
   updatedAt : Date
 });
@@ -34,14 +35,14 @@ var userSchema = mongoose.Schema({
   email : {type:String, required:true, unique:true},
   nickname : {type:String, required:true, unique:true},
   password : {type:String, required:true},
-  createdAt : {type:String, default:Date.now}
+  createdAt : {type:Date, default:Date.now}
 });
 userSchema.pre("save", function(next){
   var user = this;
   if(!user.isModified("password")){
     return next();
   } else {
-    user.password = bcrypt.hashSync(user.passwrod);
+    user.password = bcrypt.hashSync(user.password);
     return next();
   }
 });
@@ -124,6 +125,10 @@ app.post('/login',
     failureFlash : true
   })
 );
+app.get('/logout', function(req, res){
+  req.logout();
+  res.redirect('/');
+});
 // set user routes
 app.get('/users/new', function(req, res){
   res.render('users/new', {
@@ -193,8 +198,8 @@ app.get('/posts', function(req, res){
 //     res.json({success:true, data:post});
 //   }).sort({createdAt: 1});
 // }); // index
-app.get('/posts/new', function(req, res){
-  res.render("posts/new");
+app.get('/posts/new', isLoggedIn, function(req, res){
+  res.render("posts/new", {user:req.user});
 }); // new
 app.get('/posts/:id', function(req, res){
   Post.findById(req.params.id, function(err, post){
@@ -210,8 +215,9 @@ app.get('/posts/:id/edit', function(req, res){
   });
 }); // edit
 
-app.post('/posts', function(req, res){
-  console.log(req.body);
+app.post('/posts', isLoggedIn, function(req, res){
+  //console.log(req.body);
+  req.body.post.author = req.user._id;
   Post.create(req.body.post, function(err, post){
     if(err) return res.json({success:false, message:err});
     res.redirect('/posts');
