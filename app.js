@@ -186,11 +186,11 @@ app.put('/users/:id', isLoggedIn, checkUserRegValidation, function(req,res){
     }
   });
 });
-// set routes
+// set post routes
 app.get('/posts', function(req, res){
-  Post.find({}).sort('-createdAt').exec(function(err, post){
+  Post.find({}).populate("author").sort('-createdAt').exec(function(err, posts){
     if(err) return res.json({success:false, message:err});
-    res.render("posts/index", {data:post, user:req.user});
+    res.render("posts/index", {posts:posts, user:req.user});
   });
 }); // index
 // app.get('/posts', function(req, res){
@@ -202,21 +202,19 @@ app.get('/posts/new', isLoggedIn, function(req, res){
   res.render("posts/new", {user:req.user});
 }); // new
 app.get('/posts/:id', function(req, res){
-  Post.findById(req.params.id, function(err, post){
+  Post.findById(req.params.id).populate("author").exec(function(err, posts){
     if(err) return res.json({success:false, message:err});
-    //console.log({data:post});
-    res.render("posts/show", {data:post});
+    res.render("posts/show", {post:posts, user:req.user});  //로그인유저 일치 체크용
   });
 }); // show
-app.get('/posts/:id/edit', function(req, res){
-  Post.findById(req.params.id, function(err, post){
+app.get('/posts/:id/edit', isLoggedIn, function(req, res){
+  Post.findById(req.params.id, function(err, posts){
     if(err) return res.json({success:false, message:err});
-    res.render("posts/edit", {data:post});
+    if(!req.user._id.equals(posts.author)) return res.json({success:false, message:"Unauthorized Attempt"});
+    res.render("posts/edit", {post:posts, user:req.user});
   });
 }); // edit
-
 app.post('/posts', isLoggedIn, function(req, res){
-  //console.log(req.body);
   req.body.post.author = req.user._id;
   Post.create(req.body.post, function(err, post){
     if(err) return res.json({success:false, message:err});
@@ -242,10 +240,24 @@ app.delete('/posts/:id', function(req, res) {
 // }); // destroy
 app.put('/posts/:id', function(req, res) {
   req.body.post.updatedAt = Date.now();
-  Post.findByIdAndUpdate(req.params.id, req.body.post, function(err, post) {
+  Post.findOneAndUpdate({_id:req.params.id, author:req.user._id},
+                         req.body.post, function(err, post){
     if(err) return res.json({success:false, message:err});
+    if(!post) return res.json({success:false, message:"No data found to update"});
     res.redirect('/posts/'+req.params.id);
   });
+  // Post.findById(req.param.id, function(err, post){
+  //   if(err) return res.json({success:false, message:err});
+  //   if(!req.user._id.equals(post.author)) res.json({success:false, message:"Unauthorized Attempt"});
+  //   Post.findByIdAndUpdate(req.params.id, req.body.post, function(err, post){
+  //     if(err) return res.json({success:false, message:err});
+  //     res.redirect("/posts/"+req.paras.id);
+  //   });
+  // });
+  // Post.findByIdAndUpdate(req.params.id, req.body.post, function(err, post) {
+  //   if(err) return res.json({success:false, message:err});
+  //   res.redirect('/posts/'+req.params.id);
+  // });
 }); // update
 // app.put('/posts/:id', function(req, res) {
 //   req.body.post.updatedAt = Date.now();
@@ -254,9 +266,23 @@ app.put('/posts/:id', function(req, res) {
 //   });
 // }); // update
 app.delete('/posts/:id', function(req, res) {
-  Post.findByIdAndRemove(req.params.id, function(err, post) {
-    res.json({success:true, message:post._id+" deleted"});
+  Post.findOneAndDelete({_id:req.params.id, author:req.user._id},
+                          function(err, post){
+    if(err) res.json({success:false, message:err});
+    if(!post) res.json({success:false, message:"No data found to delete"});
+    res.redirect('/posts');
   });
+  // Post.findById(req.params.id, function(err, post){
+  //   if(err) res.json({success:false, message:err});
+  //   if(!req.user._id.equals(post.author))  return res.json({success:false, message:"Unauthorized Attempt"});
+  //   Post.findByIdAndRemove(req.params.id, function(err, post) {
+  //     if(err) return res.json({success:false, message:err});
+  //     res.redirect("/posts");
+  //   });
+  // });
+  // Post.findByIdAndRemove(req.params.id, function(err, post) {
+  //   res.json({success:true, message:post._id+" deleted"});
+  // });
 }); // destroy
 // functions
 function isLoggedIn(req, res, next) {
